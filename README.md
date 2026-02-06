@@ -4,45 +4,43 @@ Synthetic dataset generation pipeline for training space situational awareness (
 
 ## Motivation
 
-Real event camera data for space domain awareness is extremely scarce. This project generates realistic synthetic event streams of satellites and space debris as seen by ground-based telescopes equipped with Prophesee sensors, enabling training of detection and tracking models.
+Real event camera data for space domain awareness is extremely scarce. This project generates realistic synthetic event streams of satellites and space debris as seen by **ground-based telescopes** equipped with Prophesee sensors, enabling training of detection and tracking models.
+
+## Key Insight
+
+From ground-based telescopes, all satellites and debris are **unresolved point sources** (angular size ~1-10 mas, far below the ~1-3" seeing limit). No 3D rendering is needed -- we generate frames programmatically in Python and convert them to events using v2e.
 
 ## Pipeline Overview
 
 ```
-Orbital Mechanics (Skyfield/SGP4)  ──┐
-Star Field (Hipparcos/Tycho-2)     ──┼──> Blender Rendering ──> Event Camera Sim ──> Dataset
-Satellite 3D Models                ──┘    (Cycles / PBR)        (v2e / OpenEB)       (EVT2/HDF5)
+Star Catalog (Hipparcos/Tycho-2)  ──┐
+Satellite TLEs (SGP4/Skyfield)    ──┼──> Frame Generator ──> v2e DVS Model ──> Event Stream
+Atmosphere (seeing, scintillation) ──┘    (numpy/scipy)       (noise, CT)       (.h5/.aedat)
 ```
 
 ### Stages
 
-1. **Scene Definition** -- Generate realistic satellite/debris trajectories from TLE data, define observer telescope, select targets
-2. **Rendering** -- Physically-based rendering in Blender with solar illumination, Earth albedo, material BRDFs, star backgrounds
-3. **Event Simulation** -- Convert rendered frames to event streams using v2e or OpenEB with realistic noise models
-4. **Annotation** -- Ground truth labels from orbital mechanics (positions, velocities, bounding boxes, object classes)
+1. **Star Field** -- Load Hipparcos/Tycho-2 catalog, convert to pixel positions and fluxes for observer location/time
+2. **Satellite Trajectory** -- Propagate real TLEs with SGP4, compute apparent sky track through camera FOV
+3. **Frame Generation** -- Place point sources, convolve with atmospheric PSF, add scintillation + sky background + noise
+4. **Event Simulation** -- Feed frames to v2e synthetic input with realistic DVS noise model (contrast threshold mismatch, leak events, bandwidth)
+5. **Annotation** -- Ground truth from orbital mechanics (positions, velocities, magnitudes, object classes)
 
 ## Research
 
-See [docs/research/synthetic-dataset-generation-research.md](docs/research/synthetic-dataset-generation-research.md) for the full research survey covering:
-
-- Event camera simulators (ESIM, v2e, DVS-Voltmeter, PECS, V2CE)
-- Prophesee/OpenEB tools for synthetic data
-- Space scene rendering approaches
-- Orbital mechanics and star field simulation
-- Existing datasets (SPADES, EBSSA, Ev-Satellites, SPARK)
-- Best practices for sim-to-real transfer
+- [General synthetic dataset research](docs/research/synthetic-dataset-generation-research.md) -- Event camera simulators, Prophesee tools, space rendering, existing datasets
+- [Ground-based pipeline design](docs/research/ground-based-pipeline-design.md) -- Technical design for the ground-based approach, atmospheric modeling, v2e integration, dataset structure
 
 ## Key Dependencies
 
 ```
-skyfield          # Orbital mechanics + star catalogs
-sgp4              # TLE propagation
-astropy           # Coordinate transformations
-numpy             # Numerical computation
-h5py              # HDF5 I/O
-opencv-python     # Image processing
-torch             # Deep learning (v2e frame interpolation)
-bpy               # Blender Python API
+numpy, scipy      # Frame generation, PSF convolution
+skyfield, sgp4     # Star catalogs + satellite orbit propagation
+astropy            # Coordinate transformations
+v2e                # Video-to-events conversion (DVS simulation)
+aotools            # Atmospheric turbulence (Kolmogorov phase screens)
+h5py               # HDF5 I/O for event data
+opencv-python      # Visualization
 ```
 
 ## License
